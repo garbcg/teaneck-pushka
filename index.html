@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0b1d4a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="Chabad of Teaneck digital pushka — give tzedakah with a shake or tap. Demo only; no real charges." />
+  <title>Chabad of Teaneck · Pushka</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app" id="app">
+    <!-- Ambient background -->
+    <div class="bg-glow" aria-hidden="true"></div>
+    <div class="bg-stars" aria-hidden="true"></div>
+
+    <!-- Top brand bar -->
+    <header class="top-bar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">✡</span>
+        <div class="brand-text">
+          <h1>Chabad of Teaneck</h1>
+          <p class="tagline">Digital Pushka · צדקה</p>
+        </div>
+      </div>
+      <button type="button" class="btn-ghost" id="btn-reset" title="Reset demo balance" aria-label="Reset demo balance">Reset</button>
+    </header>
+
+    <!-- Demo banner -->
+    <div class="demo-banner" role="status">
+      <span class="demo-dot"></span>
+      Demo — not charged · no real payments yet
+    </div>
+
+    <!-- Main pushka stage -->
+    <main class="stage" id="stage">
+      <div class="feedback" id="feedback" aria-live="polite" hidden></div>
+
+      <button type="button" class="pushka-hit" id="pushka-hit" aria-label="Give one dollar of tzedakah">
+        <div class="pushka" id="pushka">
+          <!-- Lid / slot -->
+          <div class="pushka-lid">
+            <div class="slot"></div>
+            <div class="lid-rim"></div>
+          </div>
+
+          <!-- Cylinder body -->
+          <div class="pushka-body">
+            <div class="body-shine" aria-hidden="true"></div>
+            <div class="body-label">
+              <span class="hebrew">צדקה</span>
+              <span class="english">TZEDAKAH</span>
+              <span class="house">Chabad of Teaneck</span>
+            </div>
+
+            <!-- Fill liquid / coins -->
+            <div class="fill-clip">
+              <div class="fill" id="fill" style="--fill: 0%">
+                <div class="fill-surface"></div>
+                <div class="fill-coins" aria-hidden="true"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Base -->
+          <div class="pushka-base"></div>
+        </div>
+
+        <!-- Flying coin (cloned on give) -->
+        <div class="coin-fly" id="coin-template" hidden aria-hidden="true">$</div>
+      </button>
+
+      <p class="hint" id="hint">
+        Tap the pushka · press <kbd>Space</kbd> · or shake your phone
+      </p>
+    </main>
+
+    <!-- Stats footer -->
+    <footer class="stats">
+      <div class="stat">
+        <span class="stat-label">Given</span>
+        <span class="stat-value" id="stat-given">$0</span>
+      </div>
+      <div class="stat goal">
+        <span class="stat-label">Toward goal</span>
+        <span class="stat-value"><span id="stat-fill">$0</span> / <span id="stat-goal">$36</span></span>
+        <div class="mini-bar" aria-hidden="true"><div class="mini-bar-fill" id="mini-fill"></div></div>
+      </div>
+      <div class="stat">
+        <span class="stat-label">This session</span>
+        <span class="stat-value" id="stat-session">$0</span>
+      </div>
+    </footer>
+
+    <!-- Motion permission (iOS) -->
+    <div class="sheet" id="motion-sheet" hidden>
+      <div class="sheet-card">
+        <h2>Enable shake to give?</h2>
+        <p>Allow motion access so shaking your phone drops a dollar into the pushka.</p>
+        <div class="sheet-actions">
+          <button type="button" class="btn-secondary" id="motion-skip">Not now</button>
+          <button type="button" class="btn-primary" id="motion-enable">Enable shake</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,281 @@
+/**
+ * Chabad of Teaneck Digital Pushka — v1 demo
+ * Simulate $1 gives via tap / Space / DeviceMotion shake / ?give=1
+ * Persist in localStorage. No real payments.
+ */
+(function () {
+  "use strict";
+
+  const STORAGE_KEY = "teaneck-pushka-v1";
+  const DEFAULT_GOAL = 36;
+  const GIVE_AMOUNT = 1;
+  const SHAKE_THRESHOLD = 18; // m/s²-ish peak delta
+  const SHAKE_COOLDOWN_MS = 700;
+
+  const els = {
+    app: document.getElementById("app"),
+    pushka: document.getElementById("pushka"),
+    pushkaHit: document.getElementById("pushka-hit"),
+    fill: document.getElementById("fill"),
+    feedback: document.getElementById("feedback"),
+    statGiven: document.getElementById("stat-given"),
+    statFill: document.getElementById("stat-fill"),
+    statGoal: document.getElementById("stat-goal"),
+    statSession: document.getElementById("stat-session"),
+    miniFill: document.getElementById("mini-fill"),
+    btnReset: document.getElementById("btn-reset"),
+    motionSheet: document.getElementById("motion-sheet"),
+    motionEnable: document.getElementById("motion-enable"),
+    motionSkip: document.getElementById("motion-skip"),
+    coinTemplate: document.getElementById("coin-template"),
+    hint: document.getElementById("hint"),
+  };
+
+  /** @type {{ given: number, goal: number, session: number }} */
+  let state = loadState();
+  let sessionGiven = 0;
+  let giving = false;
+  let lastShake = 0;
+  let lastAccel = { x: 0, y: 0, z: 0 };
+  let motionListening = false;
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          given: Math.max(0, Number(parsed.given) || 0),
+          goal: Math.max(1, Number(parsed.goal) || DEFAULT_GOAL),
+        };
+      }
+    } catch (_) { /* ignore */ }
+    return { given: 0, goal: DEFAULT_GOAL };
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ given: state.given, goal: state.goal })
+      );
+    } catch (_) { /* private mode etc. */ }
+  }
+
+  function formatMoney(n) {
+    return "$" + Math.round(n);
+  }
+
+  function fillPct() {
+    if (state.given <= 0) return 0;
+    // True ratio, but keep a visible floor so early $1 gifts read on the cylinder
+    const raw = (state.given / state.goal) * 100;
+    const floored = Math.max(raw, Math.min(8, raw + 5));
+    return Math.min(100, floored);
+  }
+
+  function render() {
+    const pct = fillPct();
+    const truePct = Math.min(100, (state.given / state.goal) * 100);
+    els.fill.style.setProperty("--fill", pct.toFixed(2) + "%");
+    els.statGiven.textContent = formatMoney(state.given);
+    els.statFill.textContent = formatMoney(Math.min(state.given, state.goal));
+    els.statGoal.textContent = formatMoney(state.goal);
+    els.statSession.textContent = formatMoney(sessionGiven);
+    els.miniFill.style.width = truePct.toFixed(2) + "%";
+    els.app.classList.toggle("goal-reached", state.given >= state.goal);
+  }
+
+  function showFeedback(text) {
+    const node = els.feedback;
+    node.hidden = false;
+    node.textContent = text;
+    // restart CSS animation
+    node.style.animation = "none";
+    // force reflow
+    void node.offsetWidth;
+    node.style.animation = "";
+    window.clearTimeout(showFeedback._t);
+    showFeedback._t = window.setTimeout(() => {
+      node.hidden = true;
+    }, 600);
+  }
+
+  function spawnCoin() {
+    const hit = els.pushkaHit;
+    const coin = document.createElement("div");
+    coin.className = "coin-fly";
+    coin.textContent = "$";
+    coin.setAttribute("aria-hidden", "true");
+    hit.appendChild(coin);
+    window.setTimeout(() => coin.remove(), 600);
+  }
+
+  function haptic() {
+    try {
+      if (navigator.vibrate) navigator.vibrate([12, 30, 18]);
+    } catch (_) { /* ignore */ }
+  }
+
+  function animatePushka() {
+    els.pushka.classList.remove("shake");
+    void els.pushka.offsetWidth;
+    els.pushka.classList.add("shake");
+  }
+
+  /**
+   * @param {{ silent?: boolean, source?: string }} [opts]
+   */
+  function give(opts) {
+    opts = opts || {};
+    if (giving) return;
+    giving = true;
+
+    state.given += GIVE_AMOUNT;
+    sessionGiven += GIVE_AMOUNT;
+    saveState();
+    render();
+
+    if (!opts.silent) {
+      animatePushka();
+      spawnCoin();
+      haptic();
+      showFeedback("Gave $1");
+    } else {
+      animatePushka();
+      spawnCoin();
+      haptic();
+      showFeedback("Gave $1");
+    }
+
+    // brief lockout so rapid multi-fire still feels intentional
+    window.setTimeout(() => {
+      giving = false;
+    }, 280);
+  }
+
+  // —— Input: tap / click ——
+  els.pushkaHit.addEventListener("click", (e) => {
+    e.preventDefault();
+    give({ source: "tap" });
+  });
+
+  // —— Input: keyboard Space / Enter ——
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space" || e.key === " ") {
+      e.preventDefault();
+      give({ source: "keyboard" });
+    } else if (e.key === "Enter" && document.activeElement === els.pushkaHit) {
+      e.preventDefault();
+      give({ source: "keyboard" });
+    }
+  });
+
+  // —— Reset ——
+  els.btnReset.addEventListener("click", () => {
+    if (!window.confirm("Reset demo balance to $0? (This only clears local demo data.)")) {
+      return;
+    }
+    state.given = 0;
+    sessionGiven = 0;
+    saveState();
+    render();
+    showFeedback("Reset");
+  });
+
+  // —— DeviceMotion shake ——
+  function onMotion(event) {
+    const a = event.accelerationIncludingGravity || event.acceleration;
+    if (!a) return;
+    const x = a.x || 0;
+    const y = a.y || 0;
+    const z = a.z || 0;
+    const dx = x - lastAccel.x;
+    const dy = y - lastAccel.y;
+    const dz = z - lastAccel.z;
+    lastAccel = { x, y, z };
+    const delta = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    const now = Date.now();
+    if (delta > SHAKE_THRESHOLD && now - lastShake > SHAKE_COOLDOWN_MS) {
+      lastShake = now;
+      give({ source: "shake" });
+    }
+  }
+
+  function startMotion() {
+    if (motionListening) return;
+    window.addEventListener("devicemotion", onMotion, { passive: true });
+    motionListening = true;
+    if (els.hint) {
+      els.hint.innerHTML =
+        "Shake your phone · tap the pushka · or press <kbd>Space</kbd>";
+    }
+  }
+
+  function needsMotionPermission() {
+    return (
+      typeof DeviceMotionEvent !== "undefined" &&
+      typeof DeviceMotionEvent.requestPermission === "function"
+    );
+  }
+
+  function maybeOfferMotion() {
+    // Only prompt on likely mobile + if permission API exists (iOS 13+)
+    const mobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (!mobile) return;
+    if (typeof DeviceMotionEvent === "undefined") return;
+
+    if (needsMotionPermission()) {
+      // Don't auto-prompt on load — wait until user taps "Enable"
+      // Show sheet once per session if not previously skipped this session
+      if (sessionStorage.getItem("motion-skip") === "1") return;
+      els.motionSheet.hidden = false;
+    } else {
+      // Android / older: just listen
+      startMotion();
+    }
+  }
+
+  els.motionEnable.addEventListener("click", async () => {
+    try {
+      const res = await DeviceMotionEvent.requestPermission();
+      if (res === "granted") startMotion();
+    } catch (_) { /* denied / unavailable */ }
+    els.motionSheet.hidden = true;
+  });
+
+  els.motionSkip.addEventListener("click", () => {
+    sessionStorage.setItem("motion-skip", "1");
+    els.motionSheet.hidden = true;
+  });
+
+  // —— QR / deep-link: ?give=1 or path /q/teaneck ——
+  function handleDeepLink() {
+    const params = new URLSearchParams(window.location.search);
+    const path = (window.location.pathname || "").replace(/\/+$/, "");
+    const giveParam = params.get("give");
+    const isQrPath =
+      /\/q\/teaneck$/i.test(path) ||
+      /\/q\/teaneck\.html$/i.test(path);
+
+    if (giveParam === "1" || giveParam === "true" || isQrPath) {
+      // Defer slightly so first paint shows the pushka, then animate
+      window.setTimeout(() => {
+        give({ source: "qr" });
+        // Clean URL so refresh doesn't re-give (keep path, drop give param)
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("give");
+          // If opened as /q/teaneck, leave path; parent server may not rewrite.
+          window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+        } catch (_) { /* ignore */ }
+      }, 450);
+    }
+  }
+
+  // —— Init ——
+  render();
+  handleDeepLink();
+  // Offer motion after a beat so it doesn't fight the QR feedback
+  window.setTimeout(maybeOfferMotion, 900);
+})();
