@@ -5,7 +5,9 @@ Shake the phone, tap the cylinder, or press **Space** to give **$1** (simulated)
 
 > **Demo only — you are not charged.** No payment processor is connected yet. This builds the interaction loop for QR stickers on physical pushkas in shul.
 
-Original design (navy / gold / parchment). Not affiliated with or copied from any other pushka app.
+Original design: an SVG smoked-glass cylinder with brushed champagne lid/base, coin slot, and a liquid-gold fill level. Not affiliated with or copied from any other pushka app.
+
+To change the word on the cylinder, edit the single `<text id="box-word">` node in `index.html`.
 
 ## Quick start
 

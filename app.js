@@ -27,7 +27,13 @@
     motionSheet: document.getElementById("motion-sheet"),
     motionEnable: document.getElementById("motion-enable"),
     motionSkip: document.getElementById("motion-skip"),
-    coinTemplate: document.getElementById("coin-template"),
+    coinLayer: document.getElementById("coin-layer"),
+    liquidBody: document.getElementById("liquid-body"),
+    liquidTop: document.getElementById("liquid-top"),
+    liquidDepth: document.getElementById("liquid-depth"),
+    liquidMeniscus: document.getElementById("liquid-meniscus"),
+    liquidClipRect: document.getElementById("liquid-clip-rect"),
+    liquidClipTop: document.getElementById("liquid-clip-top"),
     hint: document.getElementById("hint"),
   };
 
@@ -74,10 +80,51 @@
     return Math.min(100, floored);
   }
 
+  // Liquid level geometry (SVG user units, see index.html)
+  const LEVEL_EMPTY_Y = 286; // surface at the base
+  const LEVEL_FULL_Y = 78;   // surface just under the lid
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  let levelY = LEVEL_EMPTY_Y;
+  let levelAnim = 0;
+
+  function setLevel(y) {
+    levelY = y;
+    const h = LEVEL_EMPTY_Y + 40 - y;
+    els.liquidBody.setAttribute("y", y.toFixed(2));
+    els.liquidBody.setAttribute("height", h.toFixed(2));
+    els.liquidClipRect.setAttribute("y", y.toFixed(2));
+    els.liquidClipRect.setAttribute("height", h.toFixed(2));
+    els.liquidDepth.setAttribute("y", y.toFixed(2));
+    els.liquidDepth.setAttribute("height", h.toFixed(2));
+    els.liquidTop.setAttribute("cy", y.toFixed(2));
+    els.liquidMeniscus.setAttribute("cy", y.toFixed(2));
+    els.liquidClipTop.setAttribute("cy", y.toFixed(2));
+  }
+
+  function animateLevelTo(target, instant) {
+    window.cancelAnimationFrame(levelAnim);
+    const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (instant || reduce) { setLevel(target); return; }
+    const from = levelY;
+    const start = performance.now();
+    const dur = 900;
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / dur);
+      const e = 1 - Math.pow(1 - t, 4); // easeOutQuart
+      setLevel(from + (target - from) * e);
+      if (t < 1) levelAnim = window.requestAnimationFrame(step);
+    };
+    levelAnim = window.requestAnimationFrame(step);
+  }
+
+  let firstRender = true;
   function render() {
     const pct = fillPct();
     const truePct = Math.min(100, (state.given / state.goal) * 100);
-    els.fill.style.setProperty("--fill", pct.toFixed(2) + "%");
+    const targetY = LEVEL_EMPTY_Y - (LEVEL_EMPTY_Y - LEVEL_FULL_Y) * (pct / 100);
+    els.fill.setAttribute("opacity", pct > 0 ? "1" : "0");
+    animateLevelTo(targetY, firstRender);
+    firstRender = false;
     els.statGiven.textContent = formatMoney(state.given);
     els.statFill.textContent = formatMoney(Math.min(state.given, state.goal));
     els.statGoal.textContent = formatMoney(state.goal);
@@ -101,14 +148,22 @@
     }, 600);
   }
 
+  // A minimal gold coin, face-on, that slides down into the slot
   function spawnCoin() {
-    const hit = els.pushkaHit;
-    const coin = document.createElement("div");
-    coin.className = "coin-fly";
-    coin.textContent = "$";
-    coin.setAttribute("aria-hidden", "true");
-    hit.appendChild(coin);
-    window.setTimeout(() => coin.remove(), 600);
+    const g = document.createElementNS(SVG_NS, "g");
+    g.setAttribute("class", "coin");
+    const mk = (tag, attrs) => {
+      const n = document.createElementNS(SVG_NS, tag);
+      for (const k in attrs) n.setAttribute(k, attrs[k]);
+      g.appendChild(n);
+      return n;
+    };
+    mk("circle", { cx: 120, cy: 22, r: 17, fill: "url(#g-gold)" });
+    mk("circle", { cx: 120, cy: 22, r: 13, fill: "url(#g-gold-top)" });
+    mk("circle", { cx: 120, cy: 22, r: 13, fill: "none", stroke: "#6e4c1a", "stroke-opacity": 0.35, "stroke-width": 0.6 });
+    mk("path", { d: "M106.5 15 A16 16 0 0 1 127 7", fill: "none", stroke: "#fff6dc", "stroke-opacity": 0.7, "stroke-width": 0.9, "stroke-linecap": "round" });
+    els.coinLayer.appendChild(g);
+    window.setTimeout(() => g.remove(), 700);
   }
 
   function haptic() {
