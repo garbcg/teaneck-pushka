@@ -186,8 +186,9 @@
     if (giving) return;
     giving = true;
 
-    state.given += GIVE_AMOUNT;
-    sessionGiven += GIVE_AMOUNT;
+    const amt = Math.max(1, Math.round(Number(opts.amount) || GIVE_AMOUNT));
+    state.given += amt;
+    sessionGiven += amt;
     saveState();
     render();
 
@@ -195,12 +196,12 @@
       animatePushka();
       spawnCoin();
       haptic();
-      showFeedback("Gave $1");
+      showFeedback("Gave $" + amt);
     } else {
       animatePushka();
       spawnCoin();
       haptic();
-      showFeedback("Gave $1");
+      showFeedback("Gave $" + amt);
     }
 
     // brief lockout so rapid multi-fire still feels intentional
@@ -213,6 +214,14 @@
   els.pushkaHit.addEventListener("click", (e) => {
     e.preventDefault();
     give({ source: "tap" });
+  });
+
+  // —— Input: amount buttons ——
+  document.querySelectorAll(".amount[data-amount]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      give({ source: "amount", amount: Number(btn.dataset.amount) });
+    });
   });
 
   // —— Input: keyboard Space / Enter ——
